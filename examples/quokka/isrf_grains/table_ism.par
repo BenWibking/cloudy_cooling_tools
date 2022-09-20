@@ -1,0 +1,69 @@
+###########################################################
+##################### Run parameters ######################
+
+# path to Cloudy executable
+cloudyExe               = ~/cloudy/source/cloudy.exe
+
+# don't save raw output from Cloudy
+saveCloudyOutputFiles   = 1
+
+# exit if Cloudy crashes
+exitOnCrash             = 1
+
+# give this run a name
+outputFilePrefix        = isrf_ism
+
+# index of first run
+runStartIndex           = 1
+
+# this is not a test
+test                    = 0
+
+# select a run mode
+cloudyRunMode           = 1 # cooling map mode
+
+# Current Run Mode Options
+# 0: Bare Mode - just run Cloudy with no data processing
+# 1: Cooling Map Mode - create maps of heating and cooling vs. Te
+
+############################################################
+################# Cooling Map Parameters ###################
+
+# minimum temperature
+coolingMapTmin = 1e1
+
+# maximum temperature
+coolingMapTmax = 1e9
+
+# number of steps (log space)
+coolingMapTpoints = 161
+
+# scale factor for cooling/heating
+# 1: n_H^2
+# 2: n_H * n_e
+coolingScaleFactor = 1
+
+############################################################
+############ Commands to be executed every time ############
+
+command stop zone 1
+
+command iterate to convergence
+
+command set WeakHeatCool -20
+
+command abundances ism no grains
+command grains ISM no qheat
+command grains PAH no qheat
+
+command table ism
+command extinguish column = 19.7
+command cmb, z=0
+
+command cosmic rays background 1.95 linear
+
+#######################################################
+############# Commands to be looped over ##############
+
+loop [hden] (-6;6;0.5)
+

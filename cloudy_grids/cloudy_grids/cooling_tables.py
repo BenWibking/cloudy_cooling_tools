@@ -63,6 +63,7 @@ def convert_cooling_tables(runFile,outputFile):
                 floatValues = [float(val) for val in values.split()]
                 parameterValues.append(floatValues)
                 parameterNames.append(par[2:])
+                print(f"{par[2:]}: {floatValues}") # name: [param list]
         elif getRunValues:
             totalRuns = len(lines) - q
             break
@@ -78,13 +79,26 @@ def convert_cooling_tables(runFile,outputFile):
         raise RuntimeError(
             "Error: total runs (%d) in run file not equal to product of parameters(%d)." %
             (totalRuns, np.prog(gridDimension)))
+    print(f"gridDimension: {gridDimension}")
 
+    # Find all temperatures
+    temp_range = []
+    for q in range(totalRuns):
+        mapFile = "%s_run%d.dat" % (prefix,(q+1))
+        temps = loadTemps(mapFile, gridDimension)
+        temp_range = [*temp_range, *temps]
+
+    temp_range = sorted(list(set(temp_range)))
+    print(f"temp_range: {temp_range}")
+    
     # Read in data files.
     gridData = []
     for q in range(totalRuns):
         mapFile = "%s_run%d.dat" % (prefix,(q+1))
         indices = get_grid_indices(gridDimension,q)
-        loadMap(mapFile,gridDimension,indices,gridData)
+        print(f"mapFile: {mapFile}")
+        print(f"indices: {indices}")
+        loadMap(mapFile,gridDimension,indices,gridData,temp_range)
 
     # Write out hdf5 file.
     output = h5py.File(outputFile,'w')
@@ -106,38 +120,63 @@ def convert_cooling_tables(runFile,outputFile):
 
     output.close()
 
-def loadMap(mapFile,gridDimension,indices,gridData):
+def loadTemps(mapFile, gridDimension):
+    """Read all temperatures in mapFile."""
+    f = open(mapFile,'r')
+    lines = f.readlines()
+    f.close()
+
+    temp = []
+    for line in lines:
+        line.strip()
+        if line[0] != '#':
+            onLine = line.split()
+            temp.append(float(onLine[0]))
+    return temp
+
+def loadMap(mapFile,gridDimension,indices,gridData,grid_temp):
     "Read individual cooling map ascii file and fill data arrays."
 
     f = open(mapFile,'r')
     lines = f.readlines()
     f.close()
 
-    t = []
-    h = []
-    c = []
-    m = []
+    temp = []
+    heat = []
+    cool = []
+    mmw = []
 
     for line in lines:
         line.strip()
         if line[0] != '#':
             onLine = line.split()
-            t.append(float(onLine[0]))
-            h.append(float(onLine[1]))
-            c.append(float(onLine[2]))
-            m.append(float(onLine[3]))
+            temp.append(float(onLine[0]))
+            heat.append(float(onLine[1]))
+            cool.append(float(onLine[2]))
+            mmw.append(float(onLine[3]))
 
+    def newEmptyGrid(myDims):
+        emptyData = np.empty(shape=myDims)
+        emptyData.fill(np.NaN)
+        return emptyData
+            
     if len(gridData) == 0:
         myDims = copy.deepcopy(gridDimension)
-        myDims.append(len(t))
-        gridData.append(np.array(t))
-        gridData.append(np.zeros(shape=myDims))
-        gridData.append(np.zeros(shape=myDims))
-        gridData.append(np.zeros(shape=myDims))
+        myDims.append(len(grid_temp))
+        gridData.append(np.array(grid_temp))
+        gridData.append(newEmptyGrid(myDims))
+        gridData.append(newEmptyGrid(myDims))
+        gridData.append(newEmptyGrid(myDims))
 
-    gridData[1][tuple(indices)][:] = h
-    gridData[2][tuple(indices)][:] = c
-    gridData[3][tuple(indices)][:] = m
+    print(f"len(grid_temp) = {len(grid_temp)}")
+    print(f"len(temp) = {len(temp)}")
+
+    # find indices of corresponding elements in grid_temp
+    grid_idx = np.searchsorted(grid_temp, temp)
+
+    gridData[1][tuple(indices)][grid_idx] = heat
+    gridData[2][tuple(indices)][grid_idx] = cool
+    gridData[3][tuple(indices)][grid_idx] = mmw
 
 def graft_cooling_tables(input_lt,input_ht,outputFile,
                          data_fields=['Heating','Cooling','MMW'],
